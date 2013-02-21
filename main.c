@@ -20,6 +20,10 @@ void ady_init(matrizAdy mAdy);
 void mostrarEnPantalla(FILE *in,int k);
 float compMetric(int n,matrizAdy mAdy);
 
+int BusqFwd(int Org,int Dst,matrizAdy mAdy,vector Ondas,int n,int* NumOnd);
+void BusqBck(int Org,int Dst,matrizAdy mAdy,vector Ondas,int n,int NumOnd,vector cam);
+void onda_clean(vector Ondas);
+
 int main(){
     FILE* in,*out;
     int k=1;
@@ -32,7 +36,7 @@ int main(){
         printf("no consegui el archivo ;(");
         return -1;
     }
-    getchar();
+
     while (!feof(in)) {
         
         mostrarEnPantalla(in,k);
@@ -45,10 +49,12 @@ int main(){
 }
 
 void mostrarEnPantalla(FILE *in,int k){
-    matrizAdy mAdy,mAdyc;
-    vector v;
+    matrizAdy mAdy;
+    vector Ondas,cam;
+    int NumOnd;
+
     float Cp;
-    int n,i,v1,v2;
+    int n,i,j,v1,v2;
     fscanf(in, "%d",&n);
     if (!n) return;
     printf("Diseño de hipertexto del producto #%d",k);
@@ -57,25 +63,120 @@ void mostrarEnPantalla(FILE *in,int k){
     ady_load(in,mAdy);
     //ady_print(mAdy, n);
     //printf("\n");
+       
     Cp = compMetric(n,mAdy);
     printf("\nCp = %.2f",Cp);
     fscanf(in,"%d", &v1);
     while (v1!=0) {
-        fscanf(in, "%d",&v2);
-        v[0]=-1;
-        ady_clone(mAdy, mAdyc, n);
-        camino(mAdyc, v, v1-1, v2-1, n,0);
-        printf("\nPara ir de %d a %d necesitas pasar por:\n",v1,v2);
-        printf("%d - ",v1);
-        for (i=v[0]-1; i>0; i--) {
-            printf("%d - ",v[i]+1);
+        fscanf(in, "%d",&v2);        
+        if (BusqFwd(v1-1,v2-1,mAdy,Ondas,n,&NumOnd)){
+            BusqBck(v1-1, v2-1, mAdy, Ondas, n, NumOnd, cam);
+            printf("\nC%d,%d = %d\n",v1,v2,NumOnd-1);
+            //printf("%d - ",v1);
+            for (i=0; i<NumOnd; i++) {
+                printf("%d - ",cam[i]+1);
+            }
+
         }
-        printf("%d\n\n",v2);
+        else{
+            printf("\nNoConsegui Camino:(");
+        }
         fscanf(in,"%d", &v1);
     }
+    printf("\n\n");
 
 }
 
+void onda_clean(vector Ondas){
+    int i;
+    for (i=0; i<_MAX_; i++) {
+        Ondas[i]=0;
+    }
+}
+
+int BusqFwd(int Org,int Dst,matrizAdy mAdy,vector Ondas,int n,int* NumOnd){
+	int i,w,j,k,d1,conseguida=0;
+	vector Marcas;
+	for (i=0;i<n;i++) {
+		Marcas[i]=-1;
+	}
+    onda_clean(Ondas);
+    k=0;
+    *NumOnd=0;
+    d1=k;
+	Ondas[k++]=Org;
+	Ondas[k++]=-1;
+    *NumOnd = *NumOnd+1;
+    d1=k;
+	Marcas[Org] = 1;
+	for (j = 0; j < n; j++) {
+		if (mAdy[Org][j]){
+			Ondas[k++]=j;
+            Marcas[j]=1;
+			if (j==Dst) conseguida=1;
+		}
+	}
+	Ondas[k++]=-1;
+    *NumOnd = *NumOnd+1;
+	
+	
+	while ((!conseguida)&&(d1+1!=k)) {
+		w=Ondas[d1++];
+		while (w!=-1) {//Por cada vertice w en esa onda
+			for (j = 0; j < n; j++) {
+                //printf("\nw: %d mAdy[%d][%d]=%d Marcas[%d]=%d",w,w,j,mAdy[w][j],j,Marcas[j]);
+				if (mAdy[w][j]&&Marcas[j]==-1){
+					Ondas[k++]=j;
+					Marcas[j]=1;
+					if (j==Dst) conseguida=1;
+				}
+			}
+			w=Ondas[d1++];
+		}
+        Ondas[k++]=-1;
+        *NumOnd = *NumOnd+1;
+	}
+	Ondas[k++]=-2;
+	return conseguida;
+}
+
+void BusqBck(int Org,int Dst,matrizAdy mAdy,vector Ondas,int n,int NumOnd,vector cam){
+    int k;
+    int i;
+    for (i=0; i<_MAX_; i++) {
+        cam[i]=0;
+    }
+
+    cam[NumOnd-1]=Dst;
+    
+        i=0;
+    while (Ondas[i+1]!=-2) {
+        i++;
+    }
+    i--;
+    while (Ondas[i]!=-1) {
+        i--;
+    }
+    
+    for (k=NumOnd-1; k>=1; k--) {
+        i--;
+        //printf("\nk: %d",k);
+        while ((Ondas[i]!=-1)||(i>0)) {
+           // printf("\nmAdy[%d][%d]=%d",cam[k],Ondas[i],mAdy[cam[k]][Ondas[i]]);
+            if (Ondas[i]==-1||i<0) {
+                break;
+            }
+            
+            if (mAdy[cam[k]][Ondas[i]]) {
+                cam[k-1]= Ondas[i];
+                //printf("conex %d con %d",Ondas[i],cam[k]);
+            }
+            i--;
+        }
+        
+    }
+    cam[0]=Org;
+}
 int camino(matrizAdy mAdyc,vector v,int v1,int v2,int n,int o){
     int i,a=0;
     
@@ -160,27 +261,21 @@ void ady_load(FILE* in,matrizAdy mAdy){
 
 float compMetric(int n,matrizAdy mAdy){
     int d,D,s=0,i,j;
+    int NumOndas;
     float Cp;
-    vector v;
-    matrizAdy mAdyc;
+    vector Ondas;
     d = n*n-n;
     D= d*n;
     
-    for (i=0; i<n; i++) {
-        for (j=0; j<n; j++) {
-            v[0]=-1;
-            ady_clone(mAdy, mAdyc, n);
-            camino(mAdyc, v, i, j, n, 0);
-            s=s+v[0];//placeholder
-            //aqui va ir la distancia desde el vertice i hasta el j
-            //si j no es alcanzable a i entonces devuelve n o se asigna n, werever.
-            // i a i es igual a 0
-        }
-    }
-    //printf("\n%d - %d / %d - %d",D,s,D,d);
-    
+    for (i=0; i<n; i++)
+        for (j=0; j<n; j++)
+            if (i!=j){
+                if  (BusqFwd(i, j, mAdy, Ondas, n, &NumOndas))
+                        s=s+NumOndas-1;
+                else
+                    s=s+n;
+            }
     Cp = (D - s)/(float)(D-d);
-    //printf("\n%.2f",Cp);
     return Cp;
 }
 
